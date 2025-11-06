@@ -17,7 +17,12 @@ class Tuning {
   Tuning({required this.name, required this.notes, this.isCustom = false});
 
   String get displayNotes => notes
-      .map((n) => n.replaceAll(RegExp(r'[0-9]'), '').replaceAll('#', '♯'))
+      .map(
+        (n) => n
+            .replaceAll(RegExp(r'[0-9]'), '')
+            .replaceAll('#', '♯')
+            .replaceAll('b', '♭'),
+      )
       .join(' ');
 }
 
@@ -43,6 +48,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Guitar Tuner',
       theme: ThemeData(
         primarySwatch: Colors.brown,
@@ -83,7 +89,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color(0xffFFF5E9),
+      backgroundColor: Color(0xFFFFFFFF),
       body: Center(
         child: AnimatedOpacity(
           opacity: _opacity,
@@ -108,17 +114,18 @@ class _TunerHomePageState extends State<TunerHomePage> {
   final _audioCapture = FlutterAudioCapture();
   PitchDetector? _pitchDetector;
   Timer? _resetTimer;
+  Timer? _inTuneTimer;
 
   final double _sampleRate = 44100;
   final int _bufferSize = 4096;
-  final double _clarityThreshold = 0.9;
+  final double _probabilityThreshold = 0.85;
 
   // String _note = '...';
   // double _frequency = 0.0;
   bool _isListening = false;
 
   String _tuningStatus = 'Start Tuning!';
-  Color _statusColor = const Color(0xFFE0D5C8);
+  Color _statusColor = const Color(0xFFDFDFDF);
   double _centsDiff = 0.0;
 
   bool _isAutoMode = false;
@@ -190,11 +197,21 @@ class _TunerHomePageState extends State<TunerHomePage> {
 
   void _updateStateFromSelections() {
     final selectedInstrument = _instruments[_selectedInstrumentIndex];
+
+    // Ensures tuning index is valid if instrument changes
+    if (_selectedTuningIndex >= selectedInstrument.tunings.length) {
+      _selectedTuningIndex = 0;
+    }
     final selectedTuning = selectedInstrument.tunings[_selectedTuningIndex];
 
     _stringNames = selectedTuning.notes;
     _stringDisplayNames = _stringNames
-        .map((note) => note.substring(0, note.length - 1))
+        .map(
+          (note) => note
+              .replaceAll(RegExp(r'[0-9]'), '')
+              .replaceAll('#', '♯')
+              .replaceAll('b', '♭'),
+        )
         .toList();
   }
 
@@ -241,18 +258,22 @@ class _TunerHomePageState extends State<TunerHomePage> {
       'B': 2,
       'C': -9,
       'C#': -8,
+      'Db': -8,
       'D': -7,
       'D#': -6,
+      'Eb': -6,
       'E': -5,
       'F': -4,
       'F#': -3,
+      'Gb': -3,
       'G': -2,
       'G#': -1,
+      'Ab': -1,
     };
 
     // Parse note name into note and octave
-    final note = noteName.substring(0, noteName.length - 1);
-    final octave = int.parse(noteName.substring(noteName.length - 1));
+    final note = noteName.replaceAll(RegExp(r'[0-9]'), '');
+    final octave = int.parse(noteName.replaceAll(RegExp(r'[^0-9]'), ''));
 
     // Calculate number of semitones from A
     final semitonesFromA4 = noteMap[note]!;
@@ -266,6 +287,8 @@ class _TunerHomePageState extends State<TunerHomePage> {
     SystemSound.play(SystemSoundType.click);
     Timer(const Duration(milliseconds: 200), () {
       if (mounted) setState(() => _circleScale = 1.0);
+
+      _stopCapture();
     });
   }
 
@@ -276,24 +299,42 @@ class _TunerHomePageState extends State<TunerHomePage> {
     final targetFreq = _noteToFreq(targetNote);
     final newCentsDiff = 1200 * (log(detectedFreq / targetFreq) / log(2));
 
-    final bool isNowInTune = newCentsDiff.abs() < 5;
+    final bool isNowInTune = newCentsDiff.abs() < 8;
 
     if (isNowInTune && !_isInTune) {
       _triggerInTuneAnimationSound();
     }
 
     setState(() {
-      _isInTune = isNowInTune;
       _centsDiff = newCentsDiff;
       if (isNowInTune) {
+        // Note is in tune
         _tuningStatus = 'Perfect!';
         _statusColor = const Color(0xFF5ED169);
-      } else if (newCentsDiff > 0) {
-        _tuningStatus = 'Too sharp! Tune down';
-        _statusColor = const Color(0xFF5E9EDD);
+
+        if (!_isInTune) {
+          // Just entered the "in tune" state
+          _inTuneTimer?.cancel();
+          _inTuneTimer = Timer(const Duration(seconds: 1), () {
+            // 1-second hold
+            if (mounted && _isInTune) {
+              // Check if still in tune
+              _triggerInTuneAnimationSound();
+            }
+          });
+        }
+        _isInTune = true;
       } else {
-        _tuningStatus = 'Too flat! Tune up';
-        _statusColor = const Color(0xFFE09758);
+        // Note is NOT in tune
+        _inTuneTimer?.cancel(); // Cancel any pending success timer
+        _isInTune = false; // Reset flag
+        if (newCentsDiff > 0) {
+          _tuningStatus = 'Too sharp! Tune down';
+          _statusColor = const Color(0xFF5E9EDD);
+        } else {
+          _tuningStatus = 'Too flat! Tune up';
+          _statusColor = const Color(0xFFE09758);
+        }
       }
     });
   }
@@ -315,20 +356,24 @@ class _TunerHomePageState extends State<TunerHomePage> {
     }
 
     if (_isListening && _selectedStringIndex == index) {
-      await _stopCapture();
-      return;
+      _stopCapture();
+      return Future.value();
     }
 
     setState(() {
       _selectedStringIndex = index;
-      _tuningStatus = 'Listening';
-      _statusColor = const Color(0xFFE0D5C8);
+      _tuningStatus = 'Pluck the ${_stringDisplayNames[index]} string';
+      _statusColor = const Color(0xFFDFDFDF);
       _centsDiff = 0.0;
+      _isInTune = false;
+      _inTuneTimer?.cancel();
     });
 
     if (!_isListening) {
-      await _startCapture();
+      return _startCapture();
     }
+
+    return Future.value();
   }
 
   Future<void> _startCapture() async {
@@ -356,6 +401,13 @@ class _TunerHomePageState extends State<TunerHomePage> {
 
     setState(() {
       _isListening = true;
+
+      if (_isAutoMode) {
+        _tuningStatus = 'Listening';
+      } else if (_selectedStringIndex != -1) {
+        _tuningStatus =
+            'Pluck the ${_stringDisplayNames[_selectedStringIndex]} string';
+      }
     });
   }
 
@@ -382,28 +434,59 @@ class _TunerHomePageState extends State<TunerHomePage> {
       final floatBuffer = Float32List.fromList(buffer);
       final result = await _pitchDetector?.getPitchFromFloatBuffer(floatBuffer);
 
-      if (result != null && result.probability > _clarityThreshold) {
+      if (result != null && result.probability > _probabilityThreshold) {
         _resetTimer?.cancel();
         if (mounted) {
           //Auto Mode
           if (_isAutoMode) {
             final closestIndex = _findClosestNoteIndex(result.pitch);
-            if (closestIndex != -1 && _selectedStringIndex != closestIndex) {
+
+            if (closestIndex == -1) {
+              return;
+            }
+
+            if (_selectedStringIndex == -1) {
               setState(() {
                 _selectedStringIndex = closestIndex;
               });
+            } else {
+              final currentTargetFreq = _noteToFreq(
+                _stringNames[_selectedStringIndex],
+              );
+              final currentCentsDiff =
+                  (1200 * (log(result.pitch / currentTargetFreq) / log(2)))
+                      .abs();
+
+              // If the note is > 40 cents off, its probably a new note.
+              if (currentCentsDiff > 20) {
+                final newTargetFreq = _noteToFreq(_stringNames[closestIndex]);
+                final newCentsDiff =
+                    (1200 * (log(result.pitch / newTargetFreq) / log(2))).abs();
+
+                if (closestIndex != _selectedStringIndex &&
+                    newCentsDiff < (currentCentsDiff - 15)) {
+                  setState(() {
+                    _selectedStringIndex = closestIndex;
+                  });
+                }
+              }
+              // If it's within 75 cents, we lock onto the current string don't re-evaluate
             }
           }
-          _updateTuningStatus(result.pitch);
+          if (_selectedStringIndex != -1) {
+            _updateTuningStatus(result.pitch);
+          }
         }
       } else {
         if (_resetTimer == null || !_resetTimer!.isActive) {
-          _resetTimer = Timer(const Duration(microseconds: 800), () {
+          _resetTimer = Timer(const Duration(milliseconds: 800), () {
             if (mounted && _isListening) {
               setState(() {
-                _tuningStatus = 'Listening';
-                _statusColor = const Color(0xFFE0D5C8);
+                _tuningStatus = _isAutoMode ? 'Listening' : 'Start Tuning';
+                _statusColor = const Color(0xFFDFDFDF);
                 _centsDiff = 0.0;
+                _isInTune = false;
+                _inTuneTimer?.cancel();
               });
             }
           });
@@ -414,19 +497,25 @@ class _TunerHomePageState extends State<TunerHomePage> {
 
   Future<void> _stopCapture() async {
     _resetTimer?.cancel();
-    await _audioCapture.stop();
+    _inTuneTimer?.cancel();
+    if (_isListening) {
+      await _audioCapture.stop();
+    }
+
     setState(() {
       _isListening = false;
       _selectedStringIndex = -1;
       _tuningStatus = 'Start Tuning!';
-      _statusColor = const Color(0xFFE0D5C8);
+      _statusColor = const Color(0xFFDFDFDF);
       _centsDiff = 0.0;
+      _isInTune = false;
     });
   }
 
   @override
   void dispose() {
     _resetTimer?.cancel();
+    _inTuneTimer?.cancel();
     _stopCapture();
     super.dispose();
   }
@@ -444,14 +533,14 @@ class _TunerHomePageState extends State<TunerHomePage> {
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: isSelected ? const Color(0xFF3D352E) : const Color(0xFFE0D5C8),
+          color: isSelected ? const Color(0xFF707070) : const Color(0xFFDFDFDF),
         ),
         child: Text(
           _stringDisplayNames[index],
           style: TextStyle(
             color: isSelected
-                ? const Color(0xFFE0D5C8)
-                : const Color(0xFF3D352E),
+                ? const Color(0xFFDFDFDF)
+                : const Color(0xFF000000),
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
@@ -543,29 +632,29 @@ class _TunerHomePageState extends State<TunerHomePage> {
 
     return Scaffold(
       key: _scaffoldKey,
-      backgroundColor: Color(0xFFFFF5E9),
+      backgroundColor: Color(0xFFFFFFFF),
       appBar: AppBar(
         leading: IconButton(
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
-          icon: const Icon(Icons.menu, color: Color(0xFFFFF5E9)),
+          icon: const Icon(Icons.menu, color: Color(0xFFFFFFFF)),
         ),
-        title: Text('Guitar Tuner', style: TextStyle(color: Color(0xFFFFF5E9))),
-        backgroundColor: Color(0xFF3D352E),
+        title: Text('Guitar Tuner', style: TextStyle(color: Color(0xFFFFFFFF))),
+        backgroundColor: Color(0xFF383838),
         elevation: 2.0,
       ),
       drawer: Drawer(
-        backgroundColor: const Color(0xFFFFF5E9),
+        backgroundColor: const Color(0xFFFFFFFF),
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
             DrawerHeader(
-              decoration: BoxDecoration(color: Color(0xFF3D352E)),
+              decoration: BoxDecoration(color: Color(0xFF383838)),
               child: Padding(
                 padding: EdgeInsets.only(bottom: 10),
                 child: Image.asset(
                   'assets/images/logo_light.png',
-                  width: 20,
-                  height: 20,
+                  width: 15,
+                  height: 15,
                   fit: BoxFit.contain,
                 ),
               ),
@@ -583,14 +672,14 @@ class _TunerHomePageState extends State<TunerHomePage> {
                   onChanged: (bool value) {
                     _toggleAutoMode(value);
                   },
-                  inactiveThumbColor: Color(0xFF3D352E),
-                  inactiveTrackColor: Color(0xFFFFF5E9),
-                  activeColor: const Color(0xFF3D352E),
+                  inactiveThumbColor: Color(0xFF000000),
+                  inactiveTrackColor: Color(0xFFFFFFFF),
+                  activeColor: const Color(0xFF000000),
                 ),
               ),
             ),
             SizedBox(height: 15),
-            const Divider(color: Color(0xFFD9CDBF)),
+            const Divider(color: Color(0x33000000)),
             SizedBox(height: 15),
             Padding(
               padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
@@ -599,7 +688,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
                 style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFF3D352E),
+                  color: Color(0xFF000000),
                 ),
               ),
             ),
@@ -610,7 +699,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
                   children: [
                     CircleAvatar(
                       radius: 25,
-                      backgroundColor: Color(0xFFE0D5C8),
+                      backgroundColor: Color(0xFFDFDFDF),
                       child: Padding(
                         padding: EdgeInsets.all(6),
                         child: Image.asset(
@@ -626,11 +715,11 @@ class _TunerHomePageState extends State<TunerHomePage> {
                 ),
                 selected: i == _selectedInstrumentIndex,
                 selectedColor: Colors.black,
-                selectedTileColor: Color(0xB08A7F75),
+                selectedTileColor: Color(0xFFDFDFDF),
                 onTap: () => _onInstrumentSelected(i),
               ),
             SizedBox(height: 15),
-            const Divider(color: Color(0xFFD9CDBF)),
+            const Divider(color: Color(0x33000000)),
             SizedBox(height: 15),
             Padding(
               padding: const EdgeInsets.fromLTRB(7.0, 2.0, 0.0, 5.0),
@@ -642,12 +731,12 @@ class _TunerHomePageState extends State<TunerHomePage> {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF3D352E),
+                      color: Color(0xFF000000),
                     ),
                   ),
                   IconButton(
                     onPressed: _showAddTuningDialog,
-                    icon: Icon(Icons.add, color: Color(0xFF3D352E)),
+                    icon: Icon(Icons.add, color: Color(0xFF000000)),
                   ),
                 ],
               ),
@@ -657,7 +746,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
                 title: Text(selectedInstrument.tunings[i].name),
                 subtitle: Text(
                   selectedInstrument.tunings[i].displayNotes,
-                  style: TextStyle(color: Color(0x553D352E), fontSize: 12),
+                  style: TextStyle(color: Color(0x77000000), fontSize: 12),
                 ),
                 trailing: selectedInstrument.tunings[i].isCustom
                     ? PopupMenuButton<String>(
@@ -694,7 +783,7 @@ class _TunerHomePageState extends State<TunerHomePage> {
                     : null,
                 selected: i == _selectedTuningIndex,
                 selectedColor: Colors.black,
-                selectedTileColor: Color(0xB08A7F75),
+                selectedTileColor: Color(0xFFDFDFDF),
                 onTap: () => _onTuningSelected(i),
               ),
           ],
@@ -941,7 +1030,7 @@ class _AddTuningDialogState extends State<AddTuningDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: Color(0xFFFFF5E9),
+      backgroundColor: Color(0xFFFFFFFF),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       contentPadding: const EdgeInsets.all(20),
       content: SizedBox(
