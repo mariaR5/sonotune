@@ -72,9 +72,9 @@ Real-time feedback via frequency-to-note mapping and cent deviation calculation
    `flutter run `
 
 ### Project Structure
-  lib/
-  ├── main.dart # Core logic and UI
-  assets/
-  ├── images/ # App and instrument visuals
+  lib/<br>
+  ├── main.dart # Core logic and UI<br>
+  assets/<br>
+  ├── images/ # App and instrument visuals<br>
   pubspec.yaml # Dependencies and configuration
 
