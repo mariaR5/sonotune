@@ -1,10 +1,14 @@
-# SonoTuner
+<p align="center">
+  <img src="assets/images/logo_light.png" alt="SonoTuner Logo" width="220"/>
+</p>
 
-Introducing SonoTuner — a musician’s dream.
+# SonoTune
+
+Introducing SonoTune — a musician’s dream.
 A sleek, accurate, and intelligent tuner built with Flutter, designed to make tuning effortless.
 From guitars to violins, SonoTuner listens, detects, and guides you to perfect pitch — fast, smooth, and beautifully visualized.
 
-## Why SonoTuner?
+## Why SonoTune?
 
 Tuning shouldn’t feel like a chore. SonoTuner turns it into a satisfying experience.
 With its auto-detect tuning, real-time pitch feedback, and custom tuning creation, this app bridges professional accuracy with everyday usability — whether you’re just starting out or fine-tuning before a performance.
@@ -12,13 +16,13 @@ With its auto-detect tuning, real-time pitch feedback, and custom tuning creatio
 ## Key Features
 ### YIN-Powered Pitch Detection
 
-SonoTuner uses the YIN algorithm (via the pitch_detector_dart library) — a proven and efficient method for identifying the fundamental frequency of a sound.
+SonoTune uses the YIN algorithm (via the pitch_detector_dart library) — a proven and efficient method for identifying the fundamental frequency of a sound.
 From a mix of musical notes and background noise, YIN smartly locks onto periodic signals (actual notes) and ignores random noise, ensuring the tuner reacts only to real, playable tones.
 The result: fast, stable, and reliable pitch detection every time you pluck a string.
 
 ### Auto-Tuning Mode
 
-Let SonoTuner do the work.
+Let SonoTune do the work.
 Just start playing, and the app:
   - Detects which string you’re tuning.
   - Analyzes the pitch in real time.
@@ -33,13 +37,13 @@ Prefer full control? Switch to manual mode, tap any string, and focus solely on 
 
 ### Custom Tunings
 
-Every musician has a unique sound — SonoTuner lets you create yours.
+Every musician has a unique sound — SonoTune lets you create yours.
 Define your own tuning by selecting notes and octaves for each string, give it a name, and save it.
 You can edit, delete, and switch between tunings anytime.
 
 ### Multi-Instrument Support
 
-SonoTuner comes preloaded with tunings for multiple instruments:
+SonoTune comes preloaded with tunings for multiple instruments:
   - Guitar – Standard, Drop D, Open G, Open D, Open C
   - Bass – Standard, Drop D, Drop C, Half Step, Full Step
   - Ukulele – Standard, Traditional, Low G, Baritone, Slack Key
@@ -53,10 +57,10 @@ Each instrument has realistic visuals and easy preset switching.
   - Minimal, distraction-free design built with Flutter’s Material UI principles
 
 ### Technical Overview
-- Framework: Flutter (Dart)
-- Pitch Detection: pitch_detector_dart (YIN algorithm)
-- Audio Capture: flutter_audio_capture
-- Permissions: permission_handler
+  - Framework: Flutter (Dart)
+  - Pitch Detection: pitch_detector_dart (YIN algorithm)
+  - Audio Capture: flutter_audio_capture
+  - Permissions: permission_handler
 
 Real-time feedback via frequency-to-note mapping and cent deviation calculation
 
