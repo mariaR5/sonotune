@@ -64,6 +64,22 @@ Each instrument has realistic visuals and easy preset switching.
 
 Real-time feedback via frequency-to-note mapping and cent deviation calculation
 
+### Screenshots
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/splash.jpg" alt="Splash Screen" width="200"/>
+  <img src="assets/screenshots/1.jpg" alt="Screen 1" width="200"/>
+  <img src="assets/screenshots/2.jpg" alt="Screen 2" width="200"/>
+  <img src="assets/screenshots/3.jpg" alt="Screen 3" width="200"/>
+  <img src="assets/screenshots/4.jpg" alt="Screen 4" width="200"/>
+  <img src="assets/screenshots/5.jpg" alt="Screen 5" width="200"/>
+  <img src="assets/screenshots/6.jpg" alt="Screen 6" width="200"/>
+</p>
+
+
+
 ### Installation
 
 1. Clone this repository:
